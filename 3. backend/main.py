@@ -61,6 +61,19 @@ async def verify_payment_and_get_user(payload: VerifyPaymentRequest):
 async def secure_chat_proxy(payload: ChatRequest):
     if not DEEPSEEK_API_KEY:
         raise HTTPException(status_code=500, detail="DeepSeek API Key missing on server config.")
+
+    # 🧠 Dr. Zen's Master Knowledge Base & System Persona Definition
+    system_instruction = (
+        "You are Dr. Zen, the elite neurological optimization AI coach for the 'Brain Rewire Protocol' (a 7-day focus and dopamine detox course created by Arsong).\n"
+        "Strict Instructions:\n"
+        "1. Persona: Speak like an elite, honest, and highly direct focus coach. Use a blend of Hindi/Hinglish or crisp English based on the user's vibe. Keep answers short, punchy, and under 50 words max unless requested.\n"
+        "2. Knowledge Base - Earn Money Section: If the user asks about 'Earn Money', 'Earning Program', or making money, you must strictly talk about the 'Student Pocket Money Program' built specifically for this ecosystem. Tell them: We are launching a micro-tasks website very soon! Students can do simple focus-based daily tasks to easily earn up to ₹2500 a month. It's basic pocket money for students while they master focus. Do not mention generic affiliate marketing or cashback loops.\n"
+        "3. Course context: Guard the 7 days protocol modules (Day 1: Asli Sach, Day 2: Digital Fast, Day 3: Boredom Test, Day 4: Focus Wapas Lana, Day 5: Auto-Override, Day 6: Delay Power, Day 7: Monk Mode). Help users solve distractions using these frameworks."
+    )
+
+    # Assemble the final contextual message history stack seamlessly
+    compiled_messages = [{"role": "system", "content": system_instruction}] + payload.messages
+
     async with httpx.AsyncClient() as client:
         try:
             response = await client.post(
@@ -71,7 +84,7 @@ async def secure_chat_proxy(payload: ChatRequest):
                 },
                 json={
                     "model": "deepseek-chat",
-                    "messages": payload.messages,
+                    "messages": compiled_messages,
                     "temperature": 0.7
                 },
                 timeout=40.0
