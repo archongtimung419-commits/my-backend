@@ -1,7 +1,7 @@
 import os
 import httpx
 import uvicorn
-from fastapi import FastAPI, HTTPException, status
+from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -21,9 +21,14 @@ RAZORPAY_KEY_SECRET = os.getenv("RAZORPAY_KEY_SECRET")
 
 user_database = {}
 
+# 🚀 Upgraded schema to support full frontend state logs
 class ChatRequest(BaseModel):
+    messages: list
     user_id: str
-    message: str
+    lang: str | None = None
+    name: str | None = None
+    age: str | None = None
+    day_title: str | None = None
 
 class VerifyPaymentRequest(BaseModel):
     payment_id: str
@@ -39,7 +44,6 @@ async def check_status(user_id: str):
 async def verify_payment_and_get_user(payload: VerifyPaymentRequest):
     if not RAZORPAY_KEY_ID or not RAZORPAY_KEY_SECRET:
         raise HTTPException(status_code=500, detail="Razorpay keys are missing on the server configuration.")
-
     async with httpx.AsyncClient() as client:
         try:
             response = await client.get(
@@ -49,21 +53,18 @@ async def verify_payment_and_get_user(payload: VerifyPaymentRequest):
             if response.status_code != 200:
                 raise HTTPException(status_code=500, detail="Failed to fetch data from Razorpay.")
             payment_data = response.json()
-            user_email = payment_data.get("email")
-            user_phone = payment_data.get("contact")
-            print(f"🎉 SUCCESS: Paid User Found! Email: {user_email} | Phone: {user_phone}")
-            return {"status": "success", "email": user_email}
+            return {"status": "success", "email": payment_data.get("email")}
         except Exception as e:
             raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/api/chat")
 async def secure_chat_proxy(payload: ChatRequest):
-    user_msg = payload.message
     if not DEEPSEEK_API_KEY:
         raise HTTPException(status_code=500, detail="DeepSeek API Key missing on server config.")
 
     async with httpx.AsyncClient() as client:
         try:
+            # Forward the exact contextual history array straight to DeepSeek
             response = await client.post(
                 "https://api.deepseek.com/chat/completions",
                 headers={
@@ -72,7 +73,7 @@ async def secure_chat_proxy(payload: ChatRequest):
                 },
                 json={
                     "model": "deepseek-chat",
-                    "messages": [{"role": "user", "content": user_msg}],
+                    "messages": payload.messages,
                     "temperature": 0.7
                 },
                 timeout=40.0
@@ -85,5 +86,4 @@ async def secure_chat_proxy(payload: ChatRequest):
             raise HTTPException(status_code=500, detail=str(e))
 
 if __name__ == "__main__":
-    print("🚀 Server starting automatically on port 8000...")
     uvicorn.run("main:app", host="127.0.0.1", port=8000, reload=True)
