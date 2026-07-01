@@ -4,6 +4,7 @@ import uvicorn
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 from fastapi.middleware.cors import CORSMiddleware
+from typing import List, Optional
 
 app = FastAPI()
 
@@ -21,14 +22,13 @@ RAZORPAY_KEY_SECRET = os.getenv("RAZORPAY_KEY_SECRET")
 
 user_database = {}
 
-# 🚀 Upgraded schema to support full frontend state logs
 class ChatRequest(BaseModel):
-    messages: list
+    messages: List[dict]
     user_id: str
-    lang: str | None = None
-    name: str | None = None
-    age: str | None = None
-    day_title: str | None = None
+    lang: Optional[str] = None
+    name: Optional[str] = None
+    age: Optional[str] = None
+    day_title: Optional[str] = None
 
 class VerifyPaymentRequest(BaseModel):
     payment_id: str
@@ -61,10 +61,8 @@ async def verify_payment_and_get_user(payload: VerifyPaymentRequest):
 async def secure_chat_proxy(payload: ChatRequest):
     if not DEEPSEEK_API_KEY:
         raise HTTPException(status_code=500, detail="DeepSeek API Key missing on server config.")
-
     async with httpx.AsyncClient() as client:
         try:
-            # Forward the exact contextual history array straight to DeepSeek
             response = await client.post(
                 "https://api.deepseek.com/chat/completions",
                 headers={
