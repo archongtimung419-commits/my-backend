@@ -15,13 +15,19 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Key will be loaded securely from cloud environment dashboard
 DEEPSEEK_API_KEY = os.getenv("DEEPSEEK_API_KEY")
+RAZORPAY_KEY_ID = os.getenv("RAZORPAY_KEY_ID")
+RAZORPAY_KEY_SECRET = os.getenv("RAZORPAY_KEY_SECRET")
+
 user_database = {}
 
 class ChatRequest(BaseModel):
     user_id: str
     message: str
+
+class VerifyPaymentRequest(BaseModel):
+    payment_id: str
+    order_id: str
 
 @app.get("/api/check_user_status")
 async def check_status(user_id: str):
@@ -29,11 +35,30 @@ async def check_status(user_id: str):
         user_database[user_id] = {"payment_verified": True, "tier": "ai"}
     return user_database[user_id]
 
+@app.post("/api/verify_payment")
+async def verify_payment_and_get_user(payload: VerifyPaymentRequest):
+    if not RAZORPAY_KEY_ID or not RAZORPAY_KEY_SECRET:
+        raise HTTPException(status_code=500, detail="Razorpay keys are missing on the server configuration.")
+
+    async with httpx.AsyncClient() as client:
+        try:
+            response = await client.get(
+                f"https://api.razorpay.com/v1/payments/{payload.payment_id}",
+                auth=(RAZORPAY_KEY_ID, RAZORPAY_KEY_SECRET)
+            )
+            if response.status_code != 200:
+                raise HTTPException(status_code=500, detail="Failed to fetch data from Razorpay.")
+            payment_data = response.json()
+            user_email = payment_data.get("email")
+            user_phone = payment_data.get("contact")
+            print(f"🎉 SUCCESS: Paid User Found! Email: {user_email} | Phone: {user_phone}")
+            return {"status": "success", "email": user_email}
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=str(e))
+
 @app.post("/api/chat")
 async def secure_chat_proxy(payload: ChatRequest):
-    uid = payload.user_id
     user_msg = payload.message
-    
     if not DEEPSEEK_API_KEY:
         raise HTTPException(status_code=500, detail="DeepSeek API Key missing on server config.")
 
